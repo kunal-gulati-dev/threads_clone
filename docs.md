@@ -1085,8 +1085,81 @@ export async function fetchUser(userId: string) {
 }
 ```
 
-3. Now on create thread page we need to create a form component, So 
+3. Now on create thread page we need to create a form component, So create a PostThread.tsx file in components/forms folder.
 
+4. After applying some of the code, we have to crate validation file in valiations folder named threads.ts.
+
+5. Add fields in the PostThread form. The final code will be added later in the bottom.
+
+6. Now we have to add the functionality to add threads, So create a new file in action folder named thread.action.ts.
+7. Create models in the thread.model.ts file for threads.
+```
+import mongoose from "mongoose";
+
+const threadSchema = new mongoose.Schema({
+    text: {type: String, requred: true},
+    author: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+    },
+    community: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Community",
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    },
+    parentId: {
+        type: String
+    },
+    children: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Thread"
+    }]
+});
+
+const Thread = mongoose.models.Thread || mongoose.model("Thread", threadSchema);
+
+export default Thread;
+```
+
+8. thread.action.ts file code below
+```
+import Thread from "../models/thread.models";
+import User from "../models/user.model";
+import { connectToDB } from "../mongoose";
+import { revalidatePath } from "next/cache";
+
+interface Params {
+    text: string;
+    author: string;
+    communityId: string | null;
+    path: string;
+}
+
+
+
+export async function createThread({
+    text, author, communityId, path
+}: Params){
+    connectToDB();
+    const createdThread = await Thread.create({
+        text, author, community: null, 
+    });
+
+    //  Update user model
+
+    await User.findByIdAndUpdate(author, {
+        $push: { threads: createThread._id }
+    })
+
+    revalidatePath(path);
+}
+```
+9. We will be getting an error saying Threads is not defined, So how to solve it, To solve this issue we have to give "use server" at the top of file.
+10. Why this happened, well thats because we can directly create database actions through the browser side.
 
 
 
