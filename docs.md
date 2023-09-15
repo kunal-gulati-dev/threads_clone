@@ -290,4 +290,634 @@ import { dark } from "@clerk/themes";
 
 ## =============== Onboarding Start ===============
 
+Most of the platforms we work on have some onbarding like onboarding of a persom We will work on it this time.
+
+## Onboarding page setup
+1. All the authentication is done by clerk.
+2. We will create a form for the user, So create a component in forms named AccountProfile.tsx.
+3. So in this scenario we have two cases first we have to get data from clerk that a user is authenticated or not and we get those details from
+import { currentUser } from "@clerk/nextjs";
+4. Then we have to get the details of user from our mongodb also which we can requrest later.
+
+5. Initial code for onboarding page.tsx
+
+```
+async function Page() {
+
+    const user = await currentUser();
+
+    const userInfo = {};
+
+
+    const userData = {
+        id: user?.id,
+        objectId: userInfo?._id,
+        username: userInfo?.username || user?.username,
+        name: userInfo?.name || user?.firstName || "",
+        bio: userInfo?.bio || "",
+        image: userInfo?.image || user?.imageUrl,
+    }
+
+
+    return (
+        <main className="mx-auto flex max-w-3xl flex-col justify-start px-10 py-20">
+            <h1 className="head-text">Onboarding</h1>
+            <p className="mt-3 text-base-regular text-light-2">Complete you profile now to use threads</p>
+            <section className="mt-9 bg-dark-2 p-10">
+                <AccountProfile
+                    user={userData}
+                    btnTitle="Contibue" 
+                />
+            </section>
+        </main>
+    )
+}
+
+export default Page;
+
+```
+
+6. Initial code for AccountProfile.tsx component.
+
+```
+"use client"
+
+interface Props {
+    user: {
+        id: string;
+        objectId: string;
+        username: string;
+        name: string;
+        bio: string;
+        image: string;
+    }
+    btnTitle: string;
+}
+
+const AccountProfile = ({user, btnTitle}: Props) => {
+    return (
+        <div>
+            Account Profile
+        </div>
+    )
+}
+
+export default AccountProfile;
+
+```
+
+7. We have to use shadcn.ui library now.
+8. Install shadcn ui library with command npx shadcn-ui@latest init, after it will ask come questions.
+9. Install form ui with this command npx shadcn-ui@latest add form
+
+10. Now its time to use the Form component provided by the shadcn, So we will use useform hook from react-hook-form and zod.
+11. We will be using zod for our validations
+
+12. To use zod we will create new folder in lib directory and create new file user.ts.
+```
+import * as z from 'zod';
+
+
+export const UserValidation = z.object({
+    profile_photo: z.string().url().nonempty(),
+    name: z.string().min(3, {message: "minimum 3 characters"}).max(30),
+    username: z.string().min(3).max(30),
+    bio: z.string().min(3).max(1000),
+})
+
+```
+
+13. We have to import all the form components and input components from the docs, add npx shadcn-ui@latest add input.
+
+```
+"use client"
+import { useForm } from "react-hook-form";
+import {
+	Form,
+	FormControl,
+	FormDescription,
+	FormField,
+	FormItem,
+	FormLabel,
+	FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { UserValidation } from "@/lib/validations/user";
+import * as z from "zod";
+import { Button } from "../ui/button";
+
+
+
+interface Props {
+    user: {
+        id: string;
+        objectId: string;
+        username: string;
+        name: string;
+        bio: string;
+        image: string;
+    }
+    btnTitle: string;
+}
+
+
+
+const AccountProfile = ({user, btnTitle}: Props) => {
+
+    const form = useForm({
+		resolver: zodResolver(UserValidation),
+        defaultValues: {
+            profile_photo: "",
+            name: "",
+            username: "",
+            bio: "",
+        }
+	});
+
+     function onSubmit(values: z.infer<typeof UserValidation>) {
+			// Do something with the form values.
+			// ✅ This will be type-safe and validated.
+			console.log(values);
+		}
+
+    return (
+		<Form {...form}>
+			<form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+				<FormField
+					control={form.control}
+					name="username"
+					render={({ field }) => (
+						<FormItem>
+							<FormLabel>Username</FormLabel>
+							<FormControl>
+								<Input placeholder="shadcn" {...field} />
+							</FormControl>
+							<FormDescription>
+								This is your public display name.
+							</FormDescription>
+							<FormMessage />
+						</FormItem>
+					)}
+				/>
+				<Button type="submit">Submit</Button>
+			</form>
+		</Form>
+	);
+}
+
+
+export default AccountProfile;
+
+```
+
+14. After applying this code we will have an issue with the light theme, So lets solve it.
+
+
+15. After applying all the fields in the form this is the final code without styling.
+```
+<Form {...form}>
+			<form
+				onSubmit={form.handleSubmit(onSubmit)}
+				className="flex flex-col justify-start gap-10"
+			>
+				<FormField
+					control={form.control}
+					name="profile_photo"
+					render={({ field }) => (
+						<FormItem className="flex items-center gap-4">
+							<FormLabel className="account-form_image-label">
+								{field.value ? (
+									<Image
+										src={field.value}
+										alt="profile photo"
+										width={96}
+										height={96}
+										priority
+										className="rounded-full object-contain"
+									/>
+								) : (
+									<Image
+										src="/assets/profile.svg"
+										alt="profile photo"
+										width={24}
+										height={24}
+										className="object-contain"
+									/>
+								)}
+							</FormLabel>
+							<FormControl className="flex-1 text-base-semibold text-gray-200">
+								<Input
+									// placeholder="shadcn" {...field}
+									type="file"
+									accept="image/*"
+									placeholder="Upload a photo"
+									className="account-form_image-input"
+									onChange={(e) =>
+										handleImage(e, field.onChange)
+									}
+								/>
+							</FormControl>
+						</FormItem>
+					)}
+				/>
+
+				<FormField
+					control={form.control}
+					name="name"
+					render={({ field }) => (
+						<FormItem className="flex items-center gap-3 w-full">
+							<FormLabel className="text-base-semibold text-light-2">
+								Name
+							</FormLabel>
+							<FormControl className="flex-1 text-base-semibold text-gray-200">
+								<Input
+									type="text"
+									className="account-form_input no-focus"
+									{...field}
+								/>
+							</FormControl>
+						</FormItem>
+					)}
+				/>
+
+				<FormField
+					control={form.control}
+					name="username"
+					render={({ field }) => (
+						<FormItem className="flex items-center gap-3 w-full">
+							<FormLabel className="text-base-semibold text-light-2">
+								Username
+							</FormLabel>
+							<FormControl className="flex-1 text-base-semibold text-gray-200">
+								<Input
+									type="text"
+									className="account-form_input no-focus"
+									{...field}
+								/>
+							</FormControl>
+						</FormItem>
+					)}
+				/>
+
+				<FormField
+					control={form.control}
+					name="bio"
+					render={({ field }) => (
+						<FormItem className="flex items-center gap-3 w-full">
+							<FormLabel className="text-base-semibold text-light-2">
+								Bio
+							</FormLabel>
+							<FormControl className="flex-1 text-base-semibold text-gray-200">
+								<Textarea
+                                rows={10}
+									className="account-form_input no-focus"
+									{...field}
+								/>
+							</FormControl>
+						</FormItem>
+					)}
+				/>
+				<Button type="submit">Submit</Button>
+			</form>
+		</Form>
+```
+16. After all of this we can se our styling is gone this is because when we install shadcn ui library the gloabal css file gets overridden.So copy again the global css file.
+
+17. We might encounter the error related to hydration. this might occur because of the extension we are using on the browser.
+
+18. Now lets work on the getting the default values of the singed in user.
+
+```
+const form = useForm({
+		resolver: zodResolver(UserValidation),
+        defaultValues: {
+            profile_photo: user?.image || "",
+            name: user?.name || "",
+            username: user?.username || "",
+            bio: user?.bio || "",
+        }
+	});
+
+```
+After making these changes next js will throw us with this error 
+```
+	Error: Invalid src prop (https://img.clerk.com/eyJ0eXBlIjoicHJveHkiLCJzcmMiOiJodHRwczovL2ltYWdlcy5jbGVyay5kZXYvb2F1dGhfZ29vZ2xlL2ltZ18yVk5PemNWNVZIUzRiZXpZejJRTmswNk1icmQucG5nIn0) on `next/image`, hostname "img.clerk.com" is not configured under images in your `next.config.js`
+See more info: https://nextjs.org/docs/messages/next-image-unconfigured-host
+```
+Next js is protecting us 
+In this case we are trying to render an image that is coming from clerk. clerk imediately confiured it once we log in using google, So now we need to allow img.clerk.com to allow post image on next js app.
+And we do that in next.config file
+
+```
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+	experimental: {
+		serverActions: true,
+		serverComponentsExternalPackages: ["mongoose"],
+	},
+	images: {
+		remotePatterns: [
+			{
+				protocol: "https",
+				hostname: "img.clerk.com",
+			},
+			{
+				protocol: "https",
+				hostname: "images.clerk.dev",
+			},
+			{
+				protocol: "https",
+				hostname: "uploadthing.com",
+			},
+			{
+				protocol: "https",
+				hostname: "placehold.co",
+			},
+		],
+		typescript: {
+			ignoreBuildErrors: true,
+		},
+	},
+};
+
+module.exports = nextConfig;
+```
+We have to above code for running this specially this line 
+serverActions: true,
+serverComponentsExternalPackages: ["mongoose"],
+
+because after sometime we will be getting images from mongoose too.
+
+
+19. Restart the server after making changes in the next.config file.
+
+20. Now we have to work on photo uploading process because not all the users will be coming from google. some will be coming from normal sign up.
+
+21. To handle Images and form data down will be the final code We have to create utils to check the image configuration. 
+22. We will be using uploadthing now to upload the file, create a file in lib directory named uploadthing.ts.
+
+23. After copying the code from uploadthing docs we need to create backend for this too and create api folder in app folder then create uploadthing folder in api folder and create two files core.ts and user.ts
+
+```
+import { createUploadthing, type FileRouter } from "uploadthing/next";
+import { currentUser } from "@clerk/nextjs";
+
+const f = createUploadthing();
+
+const getUser = async () => await currentUser(); 
+
+
+
+
+
+// FileRouter for your app, can contain multiple FileRoutes
+export const ourFileRouter = {
+	// Define as many FileRoutes as you like, each with a unique routeSlug
+	media: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
+		// Set permissions and file types for this FileRoute
+		.middleware(async ({ req }) => {
+			// This code runs on your server before upload
+			const user = await getUser();
+
+			// If you throw, the user will not be able to upload
+			if (!user) throw new Error("Unauthorized");
+
+			// Whatever is returned here is accessible in onUploadComplete as `metadata`
+			return { userId: user.id };
+		})
+		.onUploadComplete(async ({ metadata, file }) => {
+			// This code RUNS ON YOUR SERVER after upload
+			console.log("Upload complete for userId:", metadata.userId);
+
+			console.log("file url", file.url);
+		}),
+} satisfies FileRouter;
+
+export type OurFileRouter = typeof ourFileRouter;
+
+```
+
+```
+import { createNextRouteHandler } from "uploadthing/next";
+
+import { ourFileRouter } from "./core";
+
+// Export routes for Next App Router
+export const { GET, POST } = createNextRouteHandler({
+	router: ourFileRouter,
+});
+
+```
+24. After all this stuff we have the final frontend code for the account profile.
+
+```
+"use client"
+import { useForm } from "react-hook-form";
+import {
+	Form,
+	FormControl,
+	FormDescription,
+	FormField,
+	FormItem,
+	FormLabel,
+	FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { UserValidation } from "@/lib/validations/user";
+import * as z from "zod";
+import { Button } from "../ui/button";
+import Image from "next/image";
+import { ChangeEvent, useState } from "react";
+import { Textarea } from "../ui/textarea";
+import { isBase64Image } from "@/lib/utils";
+import { useUploadThing } from "@/lib/uploadthing";
+
+
+
+interface Props {
+    user: {
+        id: string;
+        objectId: string;
+        username: string;
+        name: string;
+        bio: string;
+        image: string;
+    }
+    btnTitle: string;
+}
+
+
+
+const AccountProfile = ({user, btnTitle}: Props) => {
+
+    const [files, setFiles] = useState<File[]>([])
+    const { startUpload } = useUploadThing("media")
+
+
+    const form = useForm({
+		resolver: zodResolver(UserValidation),
+        defaultValues: {
+            profile_photo: user?.image || "",
+            name: user?.name || "",
+            username: user?.username || "",
+            bio: user?.bio || "",
+        }
+	});
+
+    const handleImage = (e: ChangeEvent<HTMLInputElement>, fieldChange: (value: string) => void) => {
+        e.preventDefault();
+
+        const fileReader = new FileReader();
+
+        if (e.target.files && e.target.files.length > 0) {
+			const file = e.target.files[0];
+
+            setFiles(Array.from(e.target.files))
+            if (!file.type.includes('image')) return;
+
+            fileReader.onload = async (event) => {
+                const imageDataUrl = event.target?.result?.toString() || "";
+                fieldChange(imageDataUrl)
+            }
+            fileReader.readAsDataURL(file);
+		}
+    }
+
+    const onSubmit = async (values: z.infer<typeof UserValidation>) =>  {
+        const blob = values.profile_photo;
+
+        const hasImageChanged = isBase64Image(blob)
+
+        if (hasImageChanged) {
+            const imgRes = await startUpload(files)
+
+            if (imgRes && imgRes[0].fileUrl) {
+                values.profile_photo = imgRes[0].fileUrl;
+            }
+        }
+
+        // TODO: Update user profile
+
+    }
+
+    return (
+		<Form {...form}>
+			<form
+				onSubmit={form.handleSubmit(onSubmit)}
+				className="flex flex-col justify-start gap-10"
+			>
+				<FormField
+					control={form.control}
+					name="profile_photo"
+					render={({ field }) => (
+						<FormItem className="flex items-center gap-4">
+							<FormLabel className="account-form_image-label">
+								{field.value ? (
+									<Image
+										src={field.value}
+										alt="profile photo"
+										width={96}
+										height={96}
+										priority
+										className="rounded-full object-contain"
+									/>
+								) : (
+									<Image
+										src="/assets/profile.svg"
+										alt="profile photo"
+										width={24}
+										height={24}
+										className="object-contain"
+									/>
+								)}
+							</FormLabel>
+							<FormControl className="flex-1 text-base-semibold text-gray-200">
+								<Input
+									// placeholder="shadcn" {...field}
+									type="file"
+									accept="image/*"
+									placeholder="Upload a photo"
+									className="account-form_image-input"
+									onChange={(e) =>
+										handleImage(e, field.onChange)
+									}
+								/>
+							</FormControl>
+						</FormItem>
+					)}
+				/>
+
+				<FormField
+					control={form.control}
+					name="name"
+					render={({ field }) => (
+						<FormItem className="flex flex-col w-full gap-3">
+							<FormLabel className="text-base-semibold text-light-2">
+								Name
+							</FormLabel>
+							<FormControl>
+								<Input
+									type="text"
+									className="account-form_input no-focus"
+									{...field}
+								/>
+							</FormControl>
+						</FormItem>
+					)}
+				/>
+
+				<FormField
+					control={form.control}
+					name="username"
+					render={({ field }) => (
+						<FormItem className="flex flex-col w-full gap-3">
+							<FormLabel className="text-base-semibold text-light-2">
+								Username
+							</FormLabel>
+							<FormControl>
+								<Input
+									type="text"
+									className="account-form_input no-focus"
+									{...field}
+								/>
+							</FormControl>
+						</FormItem>
+					)}
+				/>
+
+				<FormField
+					control={form.control}
+					name="bio"
+					render={({ field }) => (
+						<FormItem className="flex flex-col w-full gap-3">
+							<FormLabel className="text-base-semibold text-light-2">
+								Bio
+							</FormLabel>
+							<FormControl>
+								<Textarea
+									rows={10}
+									className="account-form_input no-focus"
+									{...field}
+								/>
+							</FormControl>
+						</FormItem>
+					)}
+				/>
+				<Button type="submit" className="bg-primary-500">
+					Submit
+				</Button>
+			</form>
+		</Form>
+	);
+}
+
+
+export default AccountProfile;
+```
+
+25. 
+
+
 ## =============== Onboarding End ===============
