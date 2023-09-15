@@ -917,7 +917,179 @@ const AccountProfile = ({user, btnTitle}: Props) => {
 export default AccountProfile;
 ```
 
-25. 
-
-
 ## =============== Onboarding End ===============
+
+
+## =============== Backend Start ===============
+
+1. So for the backend we have to use server actions, So create a folder in lib folder named actions, create a file user.actions.ts in actions folder.
+
+2. Create a new file in lib folder named mongoose.ts to connect mongodb database with the application.
+
+```
+import mongoose from 'mongoose';
+
+let isConnected = false; // variable to check if mongoose is connected
+
+export const connectToDB = async () => {
+    mongoose.set("strictQuery", true);
+    if (!process.env.MONGODB_URL) return console.log("MONGODB_URL not found")
+
+    if (isConnected) return console.log("Already connected to MongoDB")
+
+    try {
+        await mongoose.connect(process.env.MONGODB_URL)
+        isConnected = true
+        console.log("connected to MongoDB")
+    } catch (error) {
+        console.log(error)
+    }
+}
+```
+
+
+3. We need to create models in the db to store data, So Create folder named models in lib folder, create user.model.ts file and write below code to create db table.
+
+```
+import mongoose from "mongoose";
+
+const userSchema = new mongoose.Schema({
+    id: {type: String, required: true},
+    username: {type: String, required: true, unique: true},
+    name: {type: String, required: true},
+    image: String,
+    bio: String,
+    threads: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Thread"
+        }
+    ],
+    onboarded: {
+        type: Boolean,
+        default: false,
+    },
+    communities: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Community"
+        }
+    ]
+});
+
+
+const User = mongoose.models.User || mongoose.model("User", userSchema)
+
+export default User;
+```
+
+4. Now we have to make functions or actions to perform database operations in the user.actions.ts file.
+```
+"use server"
+
+import { revalidatePath } from "next/cache";
+import User from "../models/user.model";
+import { connectToDB } from "../mongoose"
+
+interface Params {
+	userId: string;
+	username: string;
+	name: string;
+	bio: string;
+	image: string;
+	path: string;
+}
+
+
+
+export async function updateUser({
+    userId,
+    username,
+    name,
+    bio,
+    image,
+    path
+	}: Params): Promise<void> {
+    connectToDB();
+
+    try {
+        await User.findOneAndUpdate(
+			{ id: userId },
+			{
+				username: username.toLowerCase(),
+				name,
+				bio,
+				image,
+				onboarded: true,
+			},
+			{
+				upsert: true,
+			}
+		);
+
+		if (path === "/profile/edit") {
+			revalidatePath(path);
+		}
+    } catch (error: any) {
+        throw new Error(`Failed to create/update user: ${error.message}`)
+    }
+}
+```
+in above code what revalidate does is, It will reresh the data in the cache before the actual refresh time, So we will get the latest data everytime.
+
+5. Now after that we have to make changes in AccountProfile.tsx file because now we have to integrate the update user api, So we have to use some hooks provided by next js and those are usePathname and useRouter for navigation after the successfull update of the user.
+
+```
+import { updateUser } from "@/lib/actions/user.actions";
+import { usePathname, useRouter } from "next/navigation";
+
+const router = useRouter();
+const pathname = usePathname();
+
+await updateUser({
+		userId: user.id,
+		username: values.username,
+		name: values.name,
+		bio: values.bio,
+		image: values.profile_photo,
+		path: pathname
+	})
+	if (pathname === "/profile/eidt") {
+		router.back();
+	}else {
+		router.push("/")
+}
+
+```
+
+Add above lines of code and submit the form it will add a user to the mongodb database.
+
+## Create Thread Feature.
+
+1. Create a folder inside (root) directory and create page.tsx file there.
+
+2. Create an action for fetching the user info from the db.
+```
+export async function fetchUser(userId: string) {
+	try {
+		connectToDB();
+
+		return await User.findOne({id: userId})
+		// .populate({
+		// 	path: 'communities',
+		// 	model: Community 
+		// })
+	} catch (error: any) {
+		throw new Error(`Failed to fetch user: ${error.message}`)
+	}
+}
+```
+
+3. Now on create thread page we need to create a form component, So 
+
+
+
+
+
+
+## =============== Backend End ===============
