@@ -1258,8 +1258,326 @@ function PostThread({userId} : {userId: string}) {
 export default PostThread;
 
 ```
-
-
-
-
 ## =============== Backend End ===============
+
+## =============== Fetch Posts Start ===============
+
+1. Now we have to work on fetching the posts for the user.
+2. So we need to create a new action in threads.action.ts file named fetchPosts and we need to make the root page.tsx file a async component to call the function.
+
+```
+export async function fetchPosts(pageNumber = 1, pageSize = 20) {
+    connectToDB();
+
+    // calculate the number of posts to skip
+    const skipAmount = (pageNumber - 1) * pageSize;
+
+
+    // Fetch the posts that have no parents(Top level threads...)
+    const postsQuery = Thread.find({parentId: {$in: [null, undefined]}})
+    .sort({createdAt: "desc"})
+    .skip(skipAmount)
+    .limit(pageSize)
+    .populate({path: 'author', model: User})
+    .populate({
+        path: 'children', 
+        populate: {
+        path: 'author',
+        model: User,
+        select: "_id name parentId image"
+    }})
+
+    const totalPostsCount = await Thread.countDocuments({
+		parentId: { $in: [null, undefined] },
+	});
+
+    const posts = await postsQuery.exec();
+
+    const isNext = totalPostsCount > skipAmount + posts.length;
+
+    return {posts, isNext}
+};
+```
+3. Now we have to make changes to the root page.tsx file and the changes are the following.
+
+```
+import { fetchPosts } from "@/lib/actions/thread.action";
+import { currentUser } from "@clerk/nextjs";
+
+
+export default async function Home() {
+
+	const result =  await fetchPosts(1, 30)
+	const user = await currentUser();
+
+	console.log(result)
+
+
+	return (
+		<>
+			{/* <UserButton afterSignOutUrl="/" /> */}
+      		<h1 className="head-text text-left">Home</h1>
+			<section className="mt-9 flex flex-col gap-10">
+				{result.posts.length === 0 ? (
+					<p className="no-result">No Threads fouond</p>
+				) : (
+					<>
+						{result.posts.map((post) => {
+							return (
+								<ThreadCard
+									key={post._id}
+									id={post._id}
+									currentUserId={user?.id}
+									parentId={post.parentId}
+									content={post.text}
+									author={post.author}
+									community={post.community}
+									createdAt={post.createdAt}
+									comments={post.children}
+								/>
+							)
+						})}
+					</>
+				)}
+			</section>
+		</>
+	);
+}
+
+```
+
+## =============== Fetch Posts End ===============
+
+## =============== Thread Card Structure Start ===============
+1. We have to create a new component for thread card in the components/cards/ThreadCard.tsx file.
+2. After implimenting the card and importing it in the page.tsx file we will be encountring the error from the typescript in the currentUserId={user?.id || ''} line.
+
+3. In the ThreadCard.tsx file after implimenting the author image area, we will be facing an error with the hostname in next.config.js file. So to fix that we need to add 
+{
+	protocol: "https",
+	hostname: "utfs.io"
+}
+above mentioned code in the file.
+4. Below is the code for ThreadCard.tsx file.
+
+```
+import Image from "next/image";
+import Link from "next/link";
+
+interface Props {
+	id: string;
+	currentUserId: string;
+	parentId: string | null;
+	content: string;
+	author: {
+        name: string;
+        image: string;
+        id: string;
+    };
+	community: {
+        id: string;
+        name: string;
+        image: string;
+    } | null;
+	createdAt: string;
+	comments: {
+        author: {
+            image: string;
+        }
+    }[]
+    isComment?: boolean;
+}
+
+
+const ThreadCard = ({
+    id,
+    currentUserId,
+    parentId,
+    content,
+    author,
+    community,
+    createdAt,
+    comments,
+    isComment,
+}: Props) => {
+    return (
+		<article className="flex w-full flex-col rounded-xl bg-dark-2 p-7">
+			<div className="flex items-start justify-between">
+				<div className="flex w-full flex-1 flex-row gap-4">
+					<div className="flex flex-col items-center">
+						<Link
+							href={`/profile/${author.id}`}
+							className="relative h-11 w-11"
+						>
+							<Image
+								src={author.image}
+								alt="Profile image"
+								fill
+								className="cursor-pointer rounded-full"
+							/>
+						</Link>
+						<div className="thread-card_bar" />
+					</div>
+					<div className="flex w-full flex-col">
+						<Link href={`/profile/${author.id}`} className="w-fit">
+							<h4 className="cursor-pointer text-base-semibold text-light-1">
+								{" "}
+								{author.name}
+							</h4>
+						</Link>
+						<p className="mt-2 text-small-regular text-light-2">
+							{content}
+						</p>
+						<div className="mt-5 flex flex-col gap-3">
+							<div className="flex gap-3.5">
+								<Image
+									src="/assets/heart-gray.svg"
+									alt="heart"
+									width={24}
+									height={24}
+									className="cursor-pointer object-contain"
+								/>
+								<Link href={`/thread/${id}`}>
+									<Image
+										src="/assets/reply.svg"
+										alt="reply"
+										width={24}
+										height={24}
+										className="cursor-pointer object-contain"
+									/>
+								</Link>
+
+								<Image
+									src="/assets/repost.svg"
+									alt="repost"
+									width={24}
+									height={24}
+									className="cursor-pointer object-contain"
+								/>
+								<Image
+									src="/assets/share.svg"
+									alt="share"
+									width={24}
+									height={24}
+									className="cursor-pointer object-contain"
+								/>
+							</div>
+
+							{isComment && comments.length > 0 && (
+								<Link href={`/thread/${id}`}>
+                                    <p className="mt-1 text-subtle-medium text-grey-1">
+                                        {comments.length} replies
+                                    </p>
+                                </Link>
+							)}
+						</div>
+					</div>
+				</div>
+			</div>
+		</article>
+	);
+}
+
+export default ThreadCard;
+```
+
+5. Now we have to create Post detail page.
+6. Create a folder thread/[id] page.tsx.
+7. We know we will get some params for it and next js how we will get the params out of the url. we have to destructure it using {params}.
+
+8. We have to get the current user from clerk, user from our db, and single thread details, to fetch details about single thread we have to create new action named fetchThreadById() in the actions.
+
+9. fetchThreadById code below
+
+```
+export async function fetchThreadById(id: string) {
+    connectToDB();
+
+    try {
+
+        //  TODO: Populate community
+        const thread = await Thread.findById(id)
+            .populate({
+                path: 'author',
+                model: User,
+                select: "_id id name image"
+            })
+            .populate({
+                path: 'children',
+                populate: [
+                    {
+                        path: 'author',
+                        model: User,
+                        select: "_id id name parentId image"
+                    },
+                    {
+                        path: "children",
+                        model: Thread,
+                        populate: {
+                            path: 'author',
+                            model: User,
+                            select: "_id id name parentId image"
+                        }
+                    }
+                ]
+            }).exec();
+
+            return thread
+
+    } catch (error: any) {
+        throw new Error(`Error fetching thread: ${error.message}`)
+    }
+}
+```
+10. Thread detail page code given below.
+
+```
+import ThreadCard from "@/components/cards/ThreadCard";
+import { fetchThreadById } from "@/lib/actions/thread.action";
+import { fetchUser } from "@/lib/actions/user.actions";
+import { currentUser } from "@clerk/nextjs"; 
+import { redirect } from "next/navigation";
+
+
+const Page = async ({params} : {params: {id: string}}) => {
+
+    const user = await currentUser();
+
+    if(!user) return null;
+
+    if (!params.id) return null;
+
+    const userInfo = await fetchUser(user.id);
+
+    if (!userInfo?.onboarded) redirect("/onboarding")
+
+    const thread = await fetchThreadById(params.id)
+
+    return (
+		<section className="relative">
+			<div>
+				<ThreadCard
+					key={thread._id}
+					id={thread._id}
+					currentUserId={user?.id || ""}
+					parentId={thread.parentId}
+					content={thread.text}
+					author={thread.author}
+					community={thread.community}
+					createdAt={thread.createdAt}
+					comments={thread.children}
+				/>
+			</div>
+		</section>
+	);
+
+    
+} 
+
+export default Page;
+```
+
+
+
+
+## =============== Thread Card Structure End ===============
